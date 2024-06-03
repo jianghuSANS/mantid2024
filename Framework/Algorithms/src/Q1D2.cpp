@@ -42,7 +42,7 @@ using namespace Geometry;
 using namespace DataObjects;
 
 Q1D2::Q1D2() : API::Algorithm(), m_dataWS(), m_doSolidAngle(false) {}
-
+//这部分是设定init，从界面填的信息里面读参数，我的理解
 void Q1D2::init() {
   auto dataVal = std::make_shared<CompositeValidator>();
   dataVal->add<WorkspaceUnitValidator>("Wavelength");
@@ -109,6 +109,11 @@ void Q1D2::init() {
 /**
   @ throw invalid_argument if the workspaces are not mututially compatible
 */
+
+/**
+1.读取参数存放到指定地点MatrixWorkspace_const_sptr，然后检查有没有输入问题
+2.然后一些workspace先创建出来，开始调用后续的计算流程
+*/
 void Q1D2::exec() {
   m_dataWS = getProperty("DetBankWorkspace");
   MatrixWorkspace_const_sptr waveAdj = getProperty("WavelengthAdj");
@@ -141,6 +146,8 @@ void Q1D2::exec() {
   auto &QOut = outputWS->x(0);
   auto &YOut = outputWS->mutableY(0);
   auto &EOutTo2 = outputWS->mutableE(0);
+  
+  //重置histogram每个q值对应I的norm factor，误差和qresolution
   // normalisation that is applied to counts in each Q bin
   HistogramData::HistogramY normSum(YOut.size(), 0.0);
   // the error on the normalisation
@@ -148,11 +155,13 @@ void Q1D2::exec() {
   // the averaged Q resolution.
   HistogramData::HistogramDx qResolutionOut(YOut.size(), 0.0);
 
+  //还搞了个进度条？
   const auto numSpec = static_cast<int>(m_dataWS->getNumberHistograms());
   Progress progress(this, 0.05, 1.0, numSpec + 1);
 
   const auto &spectrumInfo = m_dataWS->spectrumInfo();
   PARALLEL_FOR_IF(Kernel::threadSafe(*m_dataWS, *outputWS, pixelAdj.get()))
+  //启动并行循环多线程处理直方图信息
   for (int i = 0; i < numSpec; ++i) {
     PARALLEL_START_INTERRUPT_REGION
     if (!spectrumInfo.hasDetectors(i)) {
@@ -163,7 +172,7 @@ void Q1D2::exec() {
     // Skip if we have a monitor or if the detector is masked.
     if (spectrumInfo.isMonitor(i) || spectrumInfo.isMasked(i))
       continue;
-
+    //计算在设定的RadiusCut和WaveCut下，对于每个pixel对应的R，可用的最小波长Wmin=(Rc-R)/Rc
     // get the bins that are included inside the RadiusCut/WaveCutcut off, those
     // to calculate for
     // const size_t wavStart = waveLengthCutOff(i);
