@@ -182,7 +182,7 @@ void Q1D2::exec() {
       // all the spectra in this detector are out of range
       continue;
     }
-
+    //给第i个spectrum的size（应该是对应wave，wavStart不是具体的波长数值 而是一个index number returned by helper.wavelengthcutoff),然后直接给他搞成三倍长？分别存norm，norm error和corresponding q
     const size_t numWavbins = m_dataWS->y(i).size() - wavStart;
     // make just one call to new to reduce CPU overhead on each thread, access
     // to these
@@ -198,7 +198,7 @@ void Q1D2::exec() {
 
     // the weighting for this input spectrum that is added to the normalization
     calculateNormalization(wavStart, i, pixelAdj, wavePixelAdj, binNorms, binNormEs, norms, normETo2s);
-
+    
     // now read the data from the input workspace, calculate Q for each bin
     convertWavetoQ(spectrumInfo, i, doGravity, wavStart, QIn, getProperty("ExtraLength"));
 
