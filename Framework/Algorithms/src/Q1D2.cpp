@@ -1,3 +1,4 @@
+//总的来说就是对每个pixelID的数据做并行计算，根据给出的Qbin把主探数据每个波长对于的中子数量和归一化参数加在一起，然后把所有pixelID的结果加在一起，counts/norm
 // Mantid Repository : https://github.com/mantidproject/mantid
 //
 // Copyright &copy; 2018 ISIS Rutherford Appleton Laboratory UKRI,
@@ -142,7 +143,7 @@ void Q1D2::exec() {
 
   // this will become the output workspace from this algorithm
   MatrixWorkspace_sptr outputWS = setUpOutputWorkspace(getProperty("OutputBinning"));
-
+  //这里的Qout已经是按OUtputBinning计算的qlist了
   auto &QOut = outputWS->x(0);
   auto &YOut = outputWS->mutableY(0);
   auto &EOutTo2 = outputWS->mutableE(0);
@@ -161,7 +162,7 @@ void Q1D2::exec() {
 
   const auto &spectrumInfo = m_dataWS->spectrumInfo();
   PARALLEL_FOR_IF(Kernel::threadSafe(*m_dataWS, *outputWS, pixelAdj.get()))
-  //启动并行循环多线程处理直方图信息
+  //启动并行循环多线程处理直方图信息，对每个spectrum（pixel）的数据进行q和YOut的计算
   for (int i = 0; i < numSpec; ++i) {
     PARALLEL_START_INTERRUPT_REGION
     if (!spectrumInfo.hasDetectors(i)) {
@@ -197,9 +198,11 @@ void Q1D2::exec() {
     auto QIn = normETo2s + numWavbins;
 
     // the weighting for this input spectrum that is added to the normalization
+    //根据detector的weavelength dependence(including Transmission!!)，pixel sensitivity（其中可选solidangle） 和mask的情况对每个pixel和每个波长区间算一个normalization factor
     calculateNormalization(wavStart, i, pixelAdj, wavePixelAdj, binNorms, binNormEs, norms, normETo2s);
     
     // now read the data from the input workspace, calculate Q for each bin
+    // 以每个波长bin的重点计算对应pixel位置的q，（可选gravity）
     convertWavetoQ(spectrumInfo, i, doGravity, wavStart, QIn, getProperty("ExtraLength"));
 
     // Pointers to the counts data and it's error
@@ -216,6 +219,7 @@ void Q1D2::exec() {
 
     // when finding the output Q bin remember that the input Q bins (from the
     // convert to wavelength) start high and reduce
+    //从Qmin开始找起？
     auto loc = QOut.cend();
     // sum the Q contributions from each individual spectrum into the output
     // array
@@ -223,6 +227,7 @@ void Q1D2::exec() {
     for (; YIn != end; ++YIn, ++EIn, ++QIn, ++norms, ++normETo2s) {
       // find the output bin that each input y-value will fall into, remembering
       // there is one more bin boundary than bins
+      
       getQBinPlus1(QOut, *QIn, loc);
       // ignore counts that are out of the output range
       if ((loc != QOut.begin()) && (loc != QOut.end())) {
@@ -254,6 +259,7 @@ void Q1D2::exec() {
     PARALLEL_CRITICAL(q1d_spectra_map) {
       progress.report("Computing I(Q)");
       // Add up the detector IDs in the output spectrum at workspace index 0
+      //这里我大概可以理解outSpec是在把每个spectrum的q-I(q)都收集起来，但是不太确定inSpec是干什么用的，仅仅是为了加detectorID吗？
       const auto &inSpec = m_dataWS->getSpectrum(i);
       auto &outSpec = outputWS->getSpectrum(0);
       outSpec.addDetectorIDs(inSpec.getDetectorIDs());
@@ -309,12 +315,15 @@ void Q1D2::exec() {
  * as param the Rebin algorithm
  *  @return A pointer to the newly-created workspace
  */
+
 API::MatrixWorkspace_sptr Q1D2::setUpOutputWorkspace(const std::vector<double> &binParams) const {
   // Calculate the output binning
-  HistogramData::BinEdges XOut(0);
+  HistogramData::BinEdges XOut(0); //Xout里面的参数是作为bin的两边的值算的？
+  // 按照rebin的算法算，log的算法是，q1,q2=q1+abs(step)*q1,q3=q2+abs(step)*q2...,返回一列qout
   static_cast<void>(VectorHelper::createAxisFromRebinParams(binParams, XOut.mutableRawData()));
 
   // Create output workspace. On all but rank 0 this is a temporary workspace.
+  //定义outputWS的有1个spectrum，对应一个definition
   Indexing::IndexInfo indexInfo(1);
   indexInfo.setSpectrumDefinitions(std::vector<SpectrumDefinition>(1));
   auto outputWS = create<MatrixWorkspace>(*m_dataWS, indexInfo, XOut);
