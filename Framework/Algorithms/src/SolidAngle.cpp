@@ -52,11 +52,12 @@ constexpr double MM_TO_METERS = 1. / 1000.;
 struct AlphaAngleCalculator {
   AlphaAngleCalculator(const DetectorInfo &detectorInfo)
       : m_detectorInfo(detectorInfo), m_samplePos(detectorInfo.samplePosition()) {}
+//m_detectorInfo holds a reference to the `ComponentInfo` object.
   double getAlpha(size_t index) const {
     const auto sampleDetVec = m_detectorInfo.position(index) - m_samplePos;
-    auto inPlane = sampleDetVec;
-    project(inPlane);
-    return sampleDetVec.cosAngle(inPlane);
+    auto inPlane = sampleDetVec; //getting sample ->detector vector
+    project(inPlane);//cannot find definition for project(), according to later context, V3D &v defines the projection plane, for vertical tubes, they set Y=0, so projecting on the XZ plane
+    return sampleDetVec.cosAngle(inPlane); 
   }
   virtual void project(V3D &v) const = 0;
   virtual ~AlphaAngleCalculator() = default;
