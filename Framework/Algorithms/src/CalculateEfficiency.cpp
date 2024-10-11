@@ -1,3 +1,4 @@
+//首先进行透过率修正，然后扣除背底散射，然后对每个spectrum里的所有tof数据求和，形成一个新的workspace，每个spectrum对应一个数字，再基于所有spectrum的平均intensity求每个spectrum（也就是pixel）的effeciency
 // Mantid Repository : https://github.com/mantidproject/mantid
 //
 // Copyright &copy; 2018 ISIS Rutherford Appleton Laboratory UKRI,
@@ -88,7 +89,7 @@ void CalculateEfficiency::exec() {
   // std::dynamic_pointer_cast<const EventWorkspace>(inputWS);
 
   // Sum up all the wavelength bins
-  auto childAlg = createChildAlgorithm("Integration", 0.0, 0.2);
+  auto childAlg = createChildAlgorithm("Integration", 0.0, 0.2); //mantid/Framework/Algorithms/src/Integration.cpp
   childAlg->setProperty<MatrixWorkspace_sptr>("InputWorkspace", inputWS);
   childAlg->executeAsChildAlg();
   rebinnedWS = childAlg->getProperty("OutputWorkspace");
